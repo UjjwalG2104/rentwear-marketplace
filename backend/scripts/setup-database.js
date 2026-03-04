@@ -2,11 +2,11 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 
 // Import models
-const User = require('../server/models/User');
-const Clothing = require('../server/models/Clothing');
-const Rental = require('../server/models/Rental');
-const Review = require('../server/models/Review');
-const Wishlist = require('../server/models/Wishlist');
+const User = require('../backend/models/User');
+const Clothing = require('../backend/models/Clothing');
+const Rental = require('../backend/models/Rental');
+const Review = require('../backend/models/Review');
+const Wishlist = require('../backend/models/Wishlist');
 
 const setupDatabase = async () => {
   try {
