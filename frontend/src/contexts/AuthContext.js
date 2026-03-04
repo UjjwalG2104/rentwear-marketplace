@@ -2,6 +2,10 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
+// Set up axios defaults
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+axios.defaults.timeout = 10000; // 10 second timeout
+
 const AuthContext = createContext();
 
 export const useAuth = () => {
@@ -30,13 +34,17 @@ export const AuthProvider = ({ children }) => {
       try {
         const token = localStorage.getItem('token');
         if (token) {
-          const response = await axios.get('/api/auth/me');
-          setUser(response.data.user);
+          try {
+            const response = await axios.get('/api/auth/me');
+            setUser(response.data.user);
+          } catch (error) {
+            console.error('Auth check failed:', error);
+            localStorage.removeItem('token');
+            delete axios.defaults.headers.common['Authorization'];
+          }
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
-        localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
+        console.error('Auth check error:', error);
       } finally {
         setLoading(false);
       }
