@@ -2,28 +2,22 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    // Try MongoDB first, fallback to in-memory if not available
-    try {
-      const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/clothes-rental', {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/clothes-rental', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s
+      connectTimeoutMS: 10000, // Timeout after 10s
+    });
 
-      console.log(`MongoDB Connected: ${conn.connection.host}`);
-      
-      // Create indexes for better performance
-      await createIndexes();
-    } catch (mongoError) {
-      console.warn('MongoDB not available, using in-memory database for development');
-      console.log('To use MongoDB, install it locally or update MONGODB_URI in .env');
-      
-      // Continue without MongoDB for development
-      return;
-    }
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    
+    // Create indexes for better performance
+    await createIndexes();
     
   } catch (error) {
-    console.error('Database connection error:', error);
-    console.log('Continuing without database for development...');
+    console.error('Database connection error:', error.message);
+    console.log('Server will continue without database for development...');
+    // Don't exit the process, continue without database
   }
 };
 
