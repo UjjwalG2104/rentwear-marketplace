@@ -1,60 +1,9 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const multer = require('multer');
-const cloudinary = require('cloudinary').v2;
 const Clothing = require('../models/Clothing');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
-
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
-// Configure multer for image uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'), false);
-    }
-  }
-});
-
-// Upload images to Cloudinary
-const uploadImages = async (files) => {
-  const uploadPromises = files.map(file => 
-    new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        { 
-          resource_type: 'image',
-          folder: 'clothing-rental',
-          transformation: [
-            { width: 800, height: 600, crop: 'fill' },
-            { quality: 'auto' }
-          ]
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve({
-            url: result.secure_url,
-            publicId: result.public_id
-          });
-        }
-      ).end(file.buffer);
-    })
-  );
-
-  return await Promise.all(uploadPromises);
-};
 
 // Get all clothing items with filters and pagination
 router.get('/', async (req, res) => {
@@ -70,10 +19,7 @@ router.get('/', async (req, res) => {
       condition,
       search,
       sortBy = 'createdAt',
-      sortOrder = 'desc',
-      lat,
-      lng,
-      maxDistance = 50
+      sortOrder = 'desc'
     } = req.query;
 
     // Build query
@@ -89,22 +35,8 @@ router.get('/', async (req, res) => {
       if (maxPrice) query.dailyPrice.$lte = parseFloat(maxPrice);
     }
 
-    // Text search
     if (search) {
       query.$text = { $search: search };
-    }
-
-    // Geospatial query
-    if (lat && lng) {
-      query.location = {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [parseFloat(lng), parseFloat(lat)]
-          },
-          $maxDistance: maxDistance * 1000 // Convert to meters
-        }
-      };
     }
 
     // Sort options
@@ -157,17 +89,16 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create new clothing listing
-router.post('/', auth, upload.array('images', 5), [
+// Create new clothing listing (accepts image URLs or base64 strings)
+router.post('/', auth, [
   body('title').trim().isLength({ min: 3, max: 100 }).withMessage('Title must be 3-100 characters'),
   body('description').trim().isLength({ min: 10, max: 1000 }).withMessage('Description must be 10-1000 characters'),
-  body('category').isIn(['dress', 'suit', 'casual', 'formal', 'accessories', 'shoes', 'outerwear', 'sportswear']),
-  body('size').isIn(['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', 'custom']),
+  body('category').isIn(['dress', 'suit', 'casual', 'formal', 'accessories', 'shoes', 'outerwear', 'sportswear']).withMessage('Invalid category'),
+  body('size').isIn(['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', 'custom']).withMessage('Invalid size'),
   body('color').trim().notEmpty().withMessage('Color is required'),
-  body('condition').isIn(['excellent', 'good', 'fair', 'like-new']),
+  body('condition').isIn(['excellent', 'good', 'fair', 'like-new']).withMessage('Invalid condition'),
   body('dailyPrice').isNumeric().withMessage('Daily price must be a number'),
   body('deposit').isNumeric().withMessage('Deposit must be a number'),
-  body('location.coordinates').isArray({ min: 2, max: 2 }).withMessage('Location coordinates are required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -175,25 +106,47 @@ router.post('/', auth, upload.array('images', 5), [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: 'At least one image is required' });
+    const {
+      title, description, category, size, color, brand,
+      condition, dailyPrice, weeklyPrice, monthlyPrice, deposit,
+      tags, imageUrls, address, minDays, maxDays
+    } = req.body;
+
+    // Build images array from provided URLs
+    const images = (imageUrls || []).map(url => ({ url, publicId: url }));
+    if (images.length === 0) {
+      images.push({
+        url: `https://placehold.co/600x400?text=${encodeURIComponent(title)}`,
+        publicId: 'placeholder'
+      });
     }
 
-    // Upload images
-    const images = await uploadImages(req.files);
-
-    const clothingData = {
-      ...req.body,
-      owner: req.userId,
+    const clothing = new Clothing({
+      title,
+      description,
+      category,
+      size,
+      color,
+      brand: brand || '',
+      condition,
+      dailyPrice: parseFloat(dailyPrice),
+      weeklyPrice: weeklyPrice ? parseFloat(weeklyPrice) : undefined,
+      monthlyPrice: monthlyPrice ? parseFloat(monthlyPrice) : undefined,
+      deposit: parseFloat(deposit),
       images,
+      owner: req.userId,
+      tags: tags || [],
       location: {
         type: 'Point',
-        coordinates: req.body.location.coordinates,
-        address: req.body.location.address
+        coordinates: [0, 0],
+        address: address || ''
+      },
+      rentalPeriod: {
+        minDays: minDays ? parseInt(minDays) : 1,
+        maxDays: maxDays ? parseInt(maxDays) : 30
       }
-    };
+    });
 
-    const clothing = new Clothing(clothingData);
     await clothing.save();
 
     const populatedClothing = await Clothing.findById(clothing._id)
@@ -205,12 +158,12 @@ router.post('/', auth, upload.array('images', 5), [
     });
   } catch (error) {
     console.error('Create clothing error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 // Update clothing item
-router.put('/:id', auth, upload.array('images', 5), async (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   try {
     const clothing = await Clothing.findById(req.params.id);
 
@@ -218,30 +171,15 @@ router.put('/:id', auth, upload.array('images', 5), async (req, res) => {
       return res.status(404).json({ message: 'Clothing item not found' });
     }
 
-    if (clothing.owner.toString() !== req.userId) {
+    if (clothing.owner.toString() !== req.userId.toString()) {
       return res.status(403).json({ message: 'Not authorized to update this item' });
     }
 
     const updateData = { ...req.body };
 
-    // Handle image uploads
-    if (req.files && req.files.length > 0) {
-      // Delete old images from Cloudinary
-      for (const image of clothing.images) {
-        await cloudinary.uploader.destroy(image.publicId);
-      }
-
-      // Upload new images
-      updateData.images = await uploadImages(req.files);
-    }
-
-    // Update location if provided
-    if (req.body.location) {
-      updateData.location = {
-        type: 'Point',
-        coordinates: req.body.location.coordinates,
-        address: req.body.location.address
-      };
+    // Handle image URLs
+    if (req.body.imageUrls && req.body.imageUrls.length > 0) {
+      updateData.images = req.body.imageUrls.map(url => ({ url, publicId: url }));
     }
 
     const updatedClothing = await Clothing.findByIdAndUpdate(
@@ -269,13 +207,8 @@ router.delete('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Clothing item not found' });
     }
 
-    if (clothing.owner.toString() !== req.userId) {
+    if (clothing.owner.toString() !== req.userId.toString()) {
       return res.status(403).json({ message: 'Not authorized to delete this item' });
-    }
-
-    // Delete images from Cloudinary
-    for (const image of clothing.images) {
-      await cloudinary.uploader.destroy(image.publicId);
     }
 
     await Clothing.findByIdAndDelete(req.params.id);
@@ -283,6 +216,29 @@ router.delete('/:id', auth, async (req, res) => {
     res.json({ message: 'Clothing item deleted successfully' });
   } catch (error) {
     console.error('Delete clothing error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Toggle availability
+router.put('/:id/availability', auth, async (req, res) => {
+  try {
+    const clothing = await Clothing.findById(req.params.id);
+
+    if (!clothing) {
+      return res.status(404).json({ message: 'Clothing item not found' });
+    }
+
+    if (clothing.owner.toString() !== req.userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    clothing.isAvailable = !clothing.isAvailable;
+    await clothing.save();
+
+    res.json({ message: 'Availability updated', isAvailable: clothing.isAvailable });
+  } catch (error) {
+    console.error('Toggle availability error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

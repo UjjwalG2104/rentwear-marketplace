@@ -214,7 +214,7 @@ const Search = () => {
 
                 {/* Price Range */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Min Price ($)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Min Price (₹)</label>
                   <input
                     type="number"
                     value={filters.minPrice}
@@ -226,7 +226,7 @@ const Search = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Max Price ($)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Max Price (₹)</label>
                   <input
                     type="number"
                     value={filters.maxPrice}
@@ -334,7 +334,7 @@ const Search = () => {
                         </Link>
                         <div className="absolute top-2 left-2">
                           <span className="badge badge-primary">
-                            ${item.dailyPrice}/day
+                            ₹{item.dailyPrice}/day
                           </span>
                         </div>
                         <button className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-red-50 transition-colors duration-200">

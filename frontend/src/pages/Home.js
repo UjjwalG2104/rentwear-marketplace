@@ -239,7 +239,7 @@ const Home = () => {
                     />
                     <div className="absolute top-4 left-4">
                       <span className="badge badge-primary">
-                        ${item.dailyPrice}/day
+                        ₹{item.dailyPrice}/day
                       </span>
                     </div>
                     <div className="absolute top-4 right-4">

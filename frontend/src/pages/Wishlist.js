@@ -116,7 +116,7 @@ const Wishlist = () => {
                     </button>
                     <div className="absolute top-2 left-2">
                       <span className="badge badge-primary">
-                        ${item.clothing.dailyPrice}/day
+                        ₹{item.clothing.dailyPrice}/day
                       </span>
                     </div>
                   </div>

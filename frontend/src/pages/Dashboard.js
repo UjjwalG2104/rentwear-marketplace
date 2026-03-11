@@ -71,7 +71,7 @@ const Dashboard = () => {
     },
     {
       title: 'Total Revenue',
-      value: `$${(stats?.stats?.totalRevenue || 0).toLocaleString()}`,
+      value: `₹${(stats?.stats?.totalRevenue || 0).toLocaleString()}`,
       icon: DollarSign,
       color: 'bg-yellow-500',
       change: '+20%',

@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../../contexts/AuthContext';
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
-import toast from 'react-hot-toast';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -130,9 +129,9 @@ const Login = () => {
             </div>
 
             <div className="text-sm">
-              <a href="#" className="font-medium text-primary-600 hover:text-primary-500">
+              <button type="button" className="font-medium text-primary-600 hover:text-primary-500 bg-transparent border-none p-0 cursor-pointer">
                 Forgot your password?
-              </a>
+              </button>
             </div>
           </div>
 

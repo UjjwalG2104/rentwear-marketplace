@@ -11,7 +11,6 @@ import {
   LogOut,
   Home,
   Package,
-  MessageSquare,
   Heart,
   TrendingUp
 } from 'lucide-react';
@@ -19,7 +18,7 @@ import {
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const { user, isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 

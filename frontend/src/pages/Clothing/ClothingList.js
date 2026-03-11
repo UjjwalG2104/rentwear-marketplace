@@ -3,7 +3,6 @@ import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import { 
   Search, 
-  Filter, 
   Grid, 
   List, 
   Star, 
@@ -34,7 +33,6 @@ const ClothingList = () => {
   ];
 
   const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', 'custom'];
-  const conditions = ['excellent', 'good', 'fair', 'like-new'];
 
   const { data, isLoading, error } = useQuery(
     ['clothing', filters, page],
@@ -252,7 +250,7 @@ const ClothingList = () => {
                           </Link>
                           <div className="absolute top-2 left-2">
                             <span className="badge badge-primary">
-                              ${item.dailyPrice}/day
+                            ₹{item.dailyPrice}/day
                             </span>
                           </div>
                           <button className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-red-50 transition-colors duration-200">
@@ -328,7 +326,7 @@ const ClothingList = () => {
                                 <p className="text-gray-600 mt-1">{item.description}</p>
                               </div>
                               <span className="badge badge-primary">
-                                ${item.dailyPrice}/day
+                                ₹{item.dailyPrice}/day
                               </span>
                             </div>
                             
