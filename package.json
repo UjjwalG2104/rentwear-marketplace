@@ -1,15 +1,1 @@
-{
-  "name": "rentwear-marketplace",
-  "version": "1.0.0",
-  "description": "RentWear clothing rental marketplace",
-  "private": true,
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
-  "scripts": {
-    "start": "npm run start --workspace=backend",
-    "start:frontend": "npm run start --workspace=frontend",
-    "install:all": "npm install --workspace=frontend && npm install --workspace=backend"
-  }
-}
+{"name":"rentwear-marketplace","version":"1.0.0","description":"RentWear clothing rental marketplace","private":true}
