@@ -87,6 +87,25 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+// Recompute average rating from reviews received by this user
+userSchema.methods.updateRating = async function() {
+  const Review = mongoose.model('Review');
+  const stats = await Review.aggregate([
+    { $match: { reviewee: this._id } },
+    {
+      $group: {
+        _id: null,
+        averageRating: { $avg: '$rating' },
+        totalReviews: { $sum: 1 }
+      }
+    }
+  ]);
+
+  this.averageRating = stats.length > 0 ? Math.round(stats[0].averageRating * 10) / 10 : 0;
+  this.totalReviews = stats.length > 0 ? stats[0].totalReviews : 0;
+  await this.save();
+};
+
 // Get full name virtual
 userSchema.virtual('fullName').get(function() {
   return `${this.firstName} ${this.lastName}`;

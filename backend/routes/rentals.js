@@ -20,7 +20,7 @@ router.post('/', auth, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { clothing, startDate, endDate, deliveryMethod, deliveryAddress, notes } = req.body;
+    const { clothing, startDate, endDate, deliveryMethod, deliveryAddress, notes, paymentMethod } = req.body;
 
     // Get clothing item
     const clothingItem = await Clothing.findById(clothing);
@@ -60,7 +60,9 @@ router.post('/', auth, [
       deliveryMethod,
       deliveryAddress,
       notes,
-      deposit: clothingItem.deposit
+      deposit: clothingItem.deposit,
+      paymentMethod: paymentMethod || 'cod',
+      paymentStatus: (paymentMethod && paymentMethod !== 'cod') ? 'paid' : 'pending'
     });
 
     rental.calculateTotalPrice(

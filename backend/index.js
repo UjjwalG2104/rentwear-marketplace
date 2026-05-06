@@ -22,23 +22,71 @@ const app = express();
 // Security middleware
 app.use(helmet());
 
-// Rate limiting
+// Rate limiting — trust proxy on Render/Heroku
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  trustProxy: false // Fix X-Forwarded-For error
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  validate: { trustProxy: false } // suppress trustProxy warning
 });
 app.use('/api/', limiter);
 
-// CORS configuration
+// Trust reverse proxy (needed on Render)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
+// CORS — supports comma-separated list of allowed origins
+// Set CLIENT_URL on Render to your Vercel URL(s), e.g.
+// CLIENT_URL=https://rentwear.vercel.app,https://rentwear-git-main.vercel.app
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(o => o.trim()) : [])
+];
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // allow server-to-server requests (no origin) and all listed origins
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    // In development, allow all localhost ports
+    if (process.env.NODE_ENV !== 'production' && /^https?:\/\/localhost/.test(origin)) return callback(null, true);
+    return callback(new Error(`CORS: origin '${origin}' not allowed`));
+  },
   credentials: true
 }));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Allow health checks even if DB is down
+app.get('/api/health', (req, res) => {
+  const connectionStates = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting'
+  };
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    database: connectionStates[mongoose.connection.readyState] || 'unknown'
+  });
+});
+
+// Return a clear error when DB is unavailable (env-aware message)
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health') return next();
+  if (mongoose.connection.readyState !== 1) {
+    const isProd = process.env.NODE_ENV === 'production';
+    return res.status(503).json({
+      message: isProd
+        ? 'Service temporarily unavailable. Please try again shortly.'
+        : 'Database unavailable. Please start MongoDB and try again.'
+    });
+  }
+  next();
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -48,15 +96,6 @@ app.use('/api/rentals', rentalRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/admin', adminRoutes);
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  });
-});
 
 // Error handling middleware
 app.use((err, req, res, next) => {

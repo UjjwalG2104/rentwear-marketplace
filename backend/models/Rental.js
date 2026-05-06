@@ -44,6 +44,11 @@ const rentalSchema = new mongoose.Schema({
     enum: ['pending', 'paid', 'refunded', 'partial_refund'],
     default: 'pending'
   },
+  paymentMethod: {
+    type: String,
+    enum: ['cod', 'card', 'upi', 'netbanking', 'wallet'],
+    default: 'cod'
+  },
   deliveryMethod: {
     type: String,
     enum: ['pickup', 'delivery'],

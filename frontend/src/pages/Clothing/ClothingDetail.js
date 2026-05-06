@@ -10,6 +10,8 @@ import {
   Shield, Clock, Tag, Check
 } from 'lucide-react';
 import LoadingSpinner from '../../components/UI/LoadingSpinner';
+import PaymentModal from '../../components/UI/PaymentModal';
+import PaymentSuccess from '../../components/UI/PaymentSuccess';
 
 const ClothingDetail = () => {
   const { id } = useParams();
@@ -17,11 +19,13 @@ const ClothingDetail = () => {
   const { isAuthenticated, user } = useAuth();
 
   const [currentImage, setCurrentImage] = useState(0);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [rentalDaysInput, setRentalDaysInput] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState('pickup');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [paidMethod, setPaidMethod] = useState(null);
 
   const { data: item, isLoading, error } = useQuery(
     ['clothing', id],
@@ -31,12 +35,10 @@ const ClothingDetail = () => {
     }
   );
 
-  const today = new Date().toISOString().split('T')[0];
-
   const getRentalDays = () => {
-    if (!startDate || !endDate) return 0;
-    const diff = (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24);
-    return Math.max(0, Math.ceil(diff));
+    const parsedDays = parseInt(rentalDaysInput, 10);
+    if (Number.isNaN(parsedDays) || parsedDays < 1) return 0;
+    return parsedDays;
   };
 
   const getTotalPrice = () => {
@@ -57,7 +59,7 @@ const ClothingDetail = () => {
 
     const days = getRentalDays();
     if (days < 1) {
-      toast.error('Please select valid dates');
+      toast.error('Please enter number of rental days');
       return;
     }
     if (days < item.rentalPeriod?.minDays) {
@@ -68,18 +70,29 @@ const ClothingDetail = () => {
       toast.error(`Maximum rental is ${item.rentalPeriod.maxDays} day(s)`);
       return;
     }
+    // Open payment modal instead of directly submitting
+    setShowPaymentModal(true);
+  };
 
+  const handlePaymentSuccess = async ({ paymentMethod }) => {
+    setShowPaymentModal(false);
     setIsSubmitting(true);
     try {
+      const days = getRentalDays();
+      const startDate = new Date();
+      const endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + days);
+
       await axios.post('/api/rentals', {
         clothing: id,
-        startDate,
-        endDate,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
         deliveryMethod,
-        notes
+        notes,
+        paymentMethod,
       });
-      toast.success('Rental request sent! The owner will confirm shortly.');
-      navigate('/my-rentals');
+      setPaidMethod(paymentMethod);
+      setShowSuccess(true);
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to submit rental request';
       toast.error(msg);
@@ -309,33 +322,15 @@ const ClothingDetail = () => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center space-x-1">
                         <Calendar className="w-4 h-4 text-gray-400" />
-                        <span>Rental Dates</span>
+                        <span>Rental Duration</span>
                       </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-xs text-gray-500 mb-1 block">Start Date</label>
-                          <input
-                            type="date"
-                            value={startDate}
-                            min={today}
-                            onChange={(e) => {
-                              setStartDate(e.target.value);
-                              if (endDate && e.target.value > endDate) setEndDate('');
-                            }}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 mb-1 block">End Date</label>
-                          <input
-                            type="date"
-                            value={endDate}
-                            min={startDate || today}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          />
-                        </div>
-                      </div>
+                      <input
+                        type="text"
+                        value={rentalDaysInput}
+                        onChange={(e) => setRentalDaysInput(e.target.value.replace(/[^\d]/g, ''))}
+                        placeholder="Enter number of rental days (e.g. 5)"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
                       {days > 0 && (
                         <p className="text-xs text-primary-600 mt-1.5 flex items-center space-x-1">
                           <Clock className="w-3.5 h-3.5" />
@@ -408,16 +403,19 @@ const ClothingDetail = () => {
                       {item.isAvailable ? (
                         <button
                           type="submit"
-                          disabled={isSubmitting || !startDate || !endDate || days < 1}
+                          disabled={isSubmitting || days < 1}
                           className="w-full py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isSubmitting ? (
                             <div className="flex items-center justify-center space-x-2">
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                              <span>Sending Request...</span>
+                              <span>Confirming…</span>
                             </div>
                           ) : (
-                            'Request to Rent'
+                            <span className="flex items-center justify-center space-x-2">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                              <span>Proceed to Pay</span>
+                            </span>
                           )}
                         </button>
                       ) : (
@@ -458,6 +456,28 @@ const ClothingDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={handlePaymentSuccess}
+        item={item}
+        totalPrice={totalPrice}
+        deposit={item?.deposit || 0}
+        rentalDays={days}
+      />
+
+      {/* Payment Success Popup */}
+      <PaymentSuccess
+        isOpen={showSuccess}
+        paymentMethod={paidMethod}
+        item={item}
+        totalPrice={totalPrice}
+        deposit={item?.deposit || 0}
+        rentalDays={days}
+        onClose={() => setShowSuccess(false)}
+      />
     </div>
   );
 };

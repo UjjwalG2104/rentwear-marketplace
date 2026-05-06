@@ -1,72 +1,49 @@
 const mongoose = require('mongoose');
 
+let hasConnectedOnce = false;
+
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/clothes-rental', {
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/clothes-rental';
+    const conn = await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 5000,
       connectTimeoutMS: 10000,
+      autoIndex: true
     });
 
     console.log(`MongoDB Connected: ${conn.connection.host}`);
-    
-    // Create indexes for better performance
-    await createIndexes();
-    
+    if (!hasConnectedOnce) {
+      hasConnectedOnce = true;
+      await syncIndexes();
+    }
   } catch (error) {
     console.error('Database connection error:', error.message);
-    console.log('Server will continue without database for development...');
-    // Don't exit the process, continue without database
+    console.log('Server will continue without database for development mode.');
   }
 };
 
-const createIndexes = async () => {
+const syncIndexes = async () => {
   try {
     if (!mongoose.connection.readyState) {
-      console.log('Skipping index creation - no database connection');
+      console.log('Skipping index sync - no database connection');
       return;
     }
-    
-    // User indexes
-    await mongoose.connection.db.collection('users').createIndex({ email: 1 }, { unique: true });
-    
-    // Clothing indexes
-    await mongoose.connection.db.collection('clothing').createIndex({ owner: 1 });
-    await mongoose.connection.db.collection('clothing').createIndex({ category: 1 });
-    await mongoose.connection.db.collection('clothing').createIndex({ size: 1 });
-    await mongoose.connection.db.collection('clothing').createIndex({ color: 1 });
-    await mongoose.connection.db.collection('clothing').createIndex({ dailyPrice: 1 });
-    await mongoose.connection.db.collection('clothing').createIndex({ averageRating: -1 });
-    await mongoose.connection.db.collection('clothing').createIndex({ views: -1 });
-    await mongoose.connection.db.collection('clothing').createIndex({ 
-      title: 'text', 
-      description: 'text', 
-      brand: 'text', 
-      tags: 'text' 
-    });
-    await mongoose.connection.db.collection('clothing').createIndex({ location: '2dsphere' });
-    
-    // Rental indexes
-    await mongoose.connection.db.collection('rentals').createIndex({ renter: 1 });
-    await mongoose.connection.db.collection('rentals').createIndex({ owner: 1 });
-    await mongoose.connection.db.collection('rentals').createIndex({ clothing: 1 });
-    await mongoose.connection.db.collection('rentals').createIndex({ status: 1 });
-    await mongoose.connection.db.collection('rentals').createIndex({ startDate: 1 });
-    await mongoose.connection.db.collection('rentals').createIndex({ endDate: 1 });
-    
-    // Review indexes
-    await mongoose.connection.db.collection('reviews').createIndex({ rental: 1, reviewer: 1 }, { unique: true });
-    await mongoose.connection.db.collection('reviews').createIndex({ clothing: 1 });
-    await mongoose.connection.db.collection('reviews').createIndex({ reviewer: 1 });
-    await mongoose.connection.db.collection('reviews').createIndex({ reviewee: 1 });
-    await mongoose.connection.db.collection('reviews').createIndex({ rating: -1 });
-    
-    // Wishlist indexes
-    await mongoose.connection.db.collection('wishlists').createIndex({ user: 1, clothing: 1 }, { unique: true });
-    await mongoose.connection.db.collection('wishlists').createIndex({ user: 1 });
-    
-    console.log('Database indexes created successfully');
+
+    // Ensure models are loaded before syncing indexes
+    require('../models/User');
+    require('../models/Clothing');
+    require('../models/Rental');
+    require('../models/Review');
+    require('../models/Wishlist');
+
+    const models = mongoose.modelNames();
+    for (const modelName of models) {
+      await mongoose.model(modelName).syncIndexes();
+    }
+
+    console.log('Database indexes synced successfully');
   } catch (error) {
-    console.error('Error creating indexes:', error);
+    console.error('Error syncing indexes:', error.message);
   }
 };
 
